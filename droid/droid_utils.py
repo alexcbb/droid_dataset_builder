@@ -308,9 +308,9 @@ def load_trajectory(
     read_recording_folderpath = read_cameras and (recording_folderpath is not None)
 
     traj_reader = TrajectoryReader(filepath, read_images=read_hdf5_images)
+    lang = traj_reader._hdf5_file.attrs["new_tasks"]
     if read_recording_folderpath:
         camera_reader = RecordedMultiCameraWrapper(recording_folderpath, camera_kwargs)
-
     horizon = traj_reader.length()
     timestep_list = []
 
@@ -323,7 +323,7 @@ def load_trajectory(
         indices_to_save = np.sort(np.random.choice(horizon, size=max_size, replace=False))
     else:
         indices_to_save = np.arange(horizon)
-
+    
     # Iterate Over Trajectory #
     for i in indices_to_save:
         # Get HDF5 Data #
@@ -361,9 +361,8 @@ def load_trajectory(
     if (num_samples_per_traj is not None) and (len(timestep_list) > num_samples_per_traj):
         ind_to_keep = np.random.choice(len(timestep_list), size=num_samples_per_traj, replace=False)
         timestep_list = timestep_list[ind_to_keep]
-
     # Close Readers #
     traj_reader.close()
 
     # Return Data #
-    return timestep_list
+    return timestep_list, lang

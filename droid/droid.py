@@ -9,19 +9,20 @@ from PIL import Image
 from droid.droid_utils import load_trajectory, crawler
 from droid.tfds_utils import MultiThreadedDatasetBuilder
 
-
-# We assume a fixed language instruction here -- if your dataset has various instructions, please modify
-LANGUAGE_INSTRUCTION = 'Do something'
-
-# Modify to point to directory with raw DROID MP4 data
-DATA_PATH = "path_to_your_data"
-
 # (180, 320) is the default resolution, modify if different resolution is desired
 IMAGE_RES = (180, 320)
 
+DATA_DIR = '../../../data/'
+
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    try:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+    except RuntimeError as e:
+        print(e)
 
 def _generate_examples(paths) -> Iterator[Tuple[str, Any]]:
-
     def _resize_and_encode(image, size):
         image = Image.fromarray(image)
         return np.array(image.resize(size, resample=Image.BICUBIC))
@@ -29,16 +30,11 @@ def _generate_examples(paths) -> Iterator[Tuple[str, Any]]:
     def _parse_example(episode_path):
         h5_filepath = os.path.join(episode_path, 'trajectory.h5')
         recording_folderpath = os.path.join(episode_path, 'recordings', 'MP4')
-
         try:
-            data = load_trajectory(h5_filepath, recording_folderpath=recording_folderpath)
+            data, lang = load_trajectory(h5_filepath, recording_folderpath=recording_folderpath)
         except:
            print(f"Skipping trajectory because data couldn't be loaded for {episode_path}.")
            return None
-
-        # get language instruction -- modify if more than one instruction
-        lang = LANGUAGE_INSTRUCTION
-
         try:
             assert all(t.keys() == data[0].keys() for t in data)
             for t in range(len(data)):
@@ -56,11 +52,10 @@ def _generate_examples(paths) -> Iterator[Tuple[str, Any]]:
                 camera_type_dict = obs['camera_type']
                 wrist_ids = [k for k, v in camera_type_dict.items() if v == 0]
                 exterior_ids = [k for k, v in camera_type_dict.items() if v != 0]
-
                 episode.append({
                     'observation': {
                         'exterior_image_1_left': obs['image'][f'{exterior_ids[0]}_left'][..., ::-1],
-                        'exterior_image_2_left': obs['image'][f'{exterior_ids[1]}_left'][..., ::-1],
+                        #'exterior_image_2_left': obs['image'][f'{exterior_ids[1]}_left'][..., ::-1],
                         'wrist_image_left': obs['image'][f'{wrist_ids[0]}_left'][..., ::-1],
                         'cartesian_position': obs['robot_state']['cartesian_position'],
                         'joint_position': obs['robot_state']['joint_positions'],
@@ -80,12 +75,11 @@ def _generate_examples(paths) -> Iterator[Tuple[str, Any]]:
                     'is_first': i == 0,
                     'is_last': i == (len(data) - 1),
                     'is_terminal': i == (len(data) - 1),
-                    'language_instruction': lang,
+                    'language_instruction': lang[0] if isinstance(lang, list) or isinstance(lang, np.ndarray) else lang,
                 })
         except:
            print(f"Skipping trajectory because there was an error in data processing for {episode_path}.")
            return None
-
         # create output data sample
         sample = {
             'steps': episode,
@@ -110,8 +104,8 @@ class Droid(MultiThreadedDatasetBuilder):
       '1.0.0': 'Initial release.',
     }
 
-    N_WORKERS = 10                  # number of parallel workers for data conversion
-    MAX_PATHS_IN_MEMORY = 100       # number of paths converted & stored in memory before writing to disk
+    N_WORKERS = 4                  # number of parallel workers for data conversion
+    MAX_PATHS_IN_MEMORY = 20       # number of paths converted & stored in memory before writing to disk
                                     # -> the higher the faster / more parallel conversion, adjust based on avilable RAM
                                     # note that one path may yield multiple episodes and adjust accordingly
     PARSE_FCN = _generate_examples  # handle to parse function from file paths to RLDS episodes
@@ -128,12 +122,12 @@ class Droid(MultiThreadedDatasetBuilder):
                             encoding_format='jpeg',
                             doc='Exterior camera 1 left viewpoint',
                         ),
-                        'exterior_image_2_left': tfds.features.Image(
-                            shape=(*IMAGE_RES, 3),
-                            dtype=np.uint8,
-                            encoding_format='jpeg',
-                            doc='Exterior camera 2 left viewpoint'
-                        ),
+                        # 'exterior_image_2_left': tfds.features.Image(
+                        #     shape=(*IMAGE_RES, 3),
+                        #     dtype=np.uint8,
+                        #     encoding_format='jpeg',
+                        #     doc='Exterior camera 2 left viewpoint'
+                        # ),
                         'wrist_image_left': tfds.features.Image(
                             shape=(*IMAGE_RES, 3),
                             dtype=np.uint8,
@@ -229,11 +223,13 @@ class Droid(MultiThreadedDatasetBuilder):
             }))
 
     def _split_paths(self):
-        """Define data splits."""
+        """Define data splits.
+        Args:
+            data_dir: path to the raw MP4 files."""
         # create list of all examples -- by default we put all examples in 'train' split
         # add more elements to the dict below if you have more splits in your data
         print("Crawling all episode paths...")
-        episode_paths = crawler(DATA_PATH)
+        episode_paths = crawler(DATA_DIR)
         episode_paths = [p for p in episode_paths if os.path.exists(p + '/trajectory.h5') and \
                          os.path.exists(p + '/recordings/MP4')]
         print(f"Found {len(episode_paths)} episodes!")
