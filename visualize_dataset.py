@@ -9,13 +9,11 @@ import matplotlib.pyplot as plt
 import wandb
 import tensorflow as tf
 
-WANDB_ENTITY = 'your_entity'
+WANDB_ENTITY = None
 WANDB_PROJECT = 'vis_rlds'
 
-
-parser = argparse.ArgumentParser()
-parser.add_argument('dataset_name', help='name of the dataset to visualize')
-args = parser.parse_args()
+DATASET_PATH = "/home/panda/tensorflow_datasets"
+DATASET_NAME = "liris_pnp_apple"
 
 if WANDB_ENTITY is not None:
     render_wandb = True
@@ -26,24 +24,20 @@ else:
 
 
 # create TF dataset
-dataset_name = args.dataset_name
-print(f"Visualizing data from dataset: {dataset_name}")
-module = importlib.import_module(dataset_name)
-ds = tfds.load(dataset_name, split='train')
-ds = ds.shuffle(100)
+print(f"Visualizing data from dataset: {DATASET_NAME}")
+ds = tfds.load(DATASET_NAME, data_dir=DATASET_PATH, split='train')
+ds = ds.shuffle(10)
 
 # visualize episodes
 for i, episode in enumerate(ds.take(10)):
     images_ext_1, images_ext_2, images_wrist = [], [], []
     for step in episode['steps']:
         images_ext_1.append(step['observation']['exterior_image_1_left'].numpy())
-        images_ext_2.append(step['observation']['exterior_image_2_left'].numpy())
         images_wrist.append(step['observation']['wrist_image_left'].numpy())
 
     image_strip_ext_1 = np.concatenate(images_ext_1[::4], axis=1)
-    image_strip_ext_2 = np.concatenate(images_ext_2[::4], axis=1)
     image_strip_wrist = np.concatenate(images_wrist[::4], axis=1)
-    image_strip = np.concatenate((image_strip_ext_1, image_strip_ext_2, image_strip_wrist), axis=0)
+    image_strip = np.concatenate((image_strip_ext_1, image_strip_wrist), axis=0)
     caption = step['language_instruction'].numpy().decode() + ' (temp. downsampled 4x)'
 
     if render_wandb:
