@@ -1,5 +1,5 @@
 import argparse
-import droid
+import liris_pnp_cube
 import tqdm
 import importlib
 import os
