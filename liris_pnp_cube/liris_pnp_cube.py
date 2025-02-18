@@ -6,13 +6,13 @@ import tensorflow_datasets as tfds
 import os
 from PIL import Image
 
-from droid.droid_utils import load_trajectory, crawler
-from droid.tfds_utils import MultiThreadedDatasetBuilder
+from liris_pnp_cube.utils import load_trajectory, crawler
+from liris_pnp_cube.tfds_utils import MultiThreadedDatasetBuilder
 
 # (180, 320) is the default resolution, modify if different resolution is desired
-IMAGE_RES = (180, 320)
+IMAGE_RES = (360, 640)
 
-DATA_DIR = '../../../data/'
+DATA_DIR = '../../../data/success'
 
 gpus = tf.config.experimental.list_physical_devices('GPU')
 if gpus:
@@ -55,7 +55,6 @@ def _generate_examples(paths) -> Iterator[Tuple[str, Any]]:
                 episode.append({
                     'observation': {
                         'exterior_image_1_left': obs['image'][f'{exterior_ids[0]}_left'][..., ::-1],
-                        #'exterior_image_2_left': obs['image'][f'{exterior_ids[1]}_left'][..., ::-1],
                         'wrist_image_left': obs['image'][f'{wrist_ids[0]}_left'][..., ::-1],
                         'cartesian_position': obs['robot_state']['cartesian_position'],
                         'joint_position': obs['robot_state']['joint_positions'],
@@ -96,7 +95,7 @@ def _generate_examples(paths) -> Iterator[Tuple[str, Any]]:
        yield _parse_example(sample)
 
 
-class Droid(MultiThreadedDatasetBuilder):
+class LirisPnpCube(MultiThreadedDatasetBuilder):
     """DatasetBuilder for example dataset."""
 
     VERSION = tfds.core.Version('1.0.0')
@@ -122,12 +121,6 @@ class Droid(MultiThreadedDatasetBuilder):
                             encoding_format='jpeg',
                             doc='Exterior camera 1 left viewpoint',
                         ),
-                        # 'exterior_image_2_left': tfds.features.Image(
-                        #     shape=(*IMAGE_RES, 3),
-                        #     dtype=np.uint8,
-                        #     encoding_format='jpeg',
-                        #     doc='Exterior camera 2 left viewpoint'
-                        # ),
                         'wrist_image_left': tfds.features.Image(
                             shape=(*IMAGE_RES, 3),
                             dtype=np.uint8,
@@ -185,7 +178,7 @@ class Droid(MultiThreadedDatasetBuilder):
                     'action': tfds.features.Tensor(
                         shape=(7,),
                         dtype=np.float64,
-                        doc='Robot action, consists of [6x joint velocities, \
+                        doc='Robot action, consists of [6x joint positions, \
                             1x gripper position].',
                     ),
                     'discount': tfds.features.Scalar(
