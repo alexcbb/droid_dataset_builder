@@ -1,8 +1,4 @@
-import argparse
-import liris_pnp_cube
 import tqdm
-import importlib
-import os
 import tensorflow_datasets as tfds
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,7 +9,7 @@ WANDB_ENTITY = None
 WANDB_PROJECT = 'vis_rlds'
 
 DATASET_PATH = "/home/panda/tensorflow_datasets"
-DATASET_NAME = "liris_pnp_apple"
+DATASET_NAME = "liris_pnp_orange"
 
 if WANDB_ENTITY is not None:
     render_wandb = True

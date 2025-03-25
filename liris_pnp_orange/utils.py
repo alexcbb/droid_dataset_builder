@@ -503,7 +503,3 @@ class SVOReader:
         if return_timestamp:
             return data_dict, received_time
         return data_dict
-    
-    def disable_camera(self):
-        if hasattr(self, "_cam"):
-            self._cam.close()

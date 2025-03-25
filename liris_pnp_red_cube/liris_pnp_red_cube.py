@@ -1,17 +1,18 @@
 from typing import Iterator, Tuple, Any
 
 import numpy as np
+import tensorflow as tf
 import tensorflow_datasets as tfds
 import os
 from PIL import Image
 import datetime
 
-from liris_pnp_apple.utils import load_trajectory, crawler
-from liris_pnp_apple.tfds_utils import MultiThreadedDatasetBuilder
+from liris_pnp_red_cube.utils import load_trajectory, crawler
+from liris_pnp_red_cube.tfds_utils import MultiThreadedDatasetBuilder
 
 
 # We assume a fixed language instruction here -- if your dataset has various instructions, please modify
-LANGUAGE_INSTRUCTION = 'Pick up the apple and put it into the red bowl'
+LANGUAGE_INSTRUCTION = 'Pick up the red cube and put it on top of the green cube'
                         
 # Modify to point to directory with raw DROID MP4 data
 DATA_PATH = "/home/panda/liris_droid/data/success"
@@ -20,8 +21,8 @@ DATA_PATH = "/home/panda/liris_droid/data/success"
 IMAGE_RES = (360, 640)
 
 # Set the dates from which you want to compose the dataset
-INITIAL_DATE = datetime.datetime(2025, 2, 6)
-FINAL_DATE = datetime.datetime(2025, 2, 6, 23, 59, 59)
+INITIAL_DATE = datetime.datetime(2025, 3, 18, 8, 30, 00)
+FINAL_DATE = datetime.datetime(2025, 3, 18, 9, 52, 00)
 
 # Filter timesteps in which no command is given to the robot
 FILTER_NO_OPS = True
@@ -117,7 +118,7 @@ def _generate_examples(paths) -> Iterator[Tuple[str, Any]]:
        yield _parse_example(sample)
 
 
-class LirisPnpApple(MultiThreadedDatasetBuilder):
+class LirisPnpRedCube(MultiThreadedDatasetBuilder):
     """DatasetBuilder for example dataset."""
 
     VERSION = tfds.core.Version('1.0.0')
