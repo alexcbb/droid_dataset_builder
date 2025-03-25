@@ -59,6 +59,8 @@ add a `--data_dir=<your_new_path>` to the `build` command to write the output to
 **Note 2**: Conversion uses multi-threading. You can adjust the number of workers and number of episodes held in memory in parallel
 via the `N_WORKERS` and `MAX_PATHS_IN_MEMORY` values in `droid.py`.
 
+If you encounter a CUDA error: Failed call to cuDeviceGet: CUDA_ERROR_NOT_INITIALIZED: initialization error error, you can launch the command using the env variable `CUDA_VISIBLE_DEVICES=""` (e.g. `CUDA_VISIBLE_DEVICES="" tfds build --overwrite`)
+
 If you would like to submit your data to the [Open X-Embodiment](https://robotics-transformer-x.github.io/) dataset to help the community, you can add a citation and 
 license as described below. Please submit your data via the [enrollment form](https://docs.google.com/forms/d/e/1FAIpQLSeYinS_Y5Bf1ufTnlROULVquD4gw6xY_wUBssfVYkHNaPp4LQ/viewform) and send a short email indicating your submission 
 to [`open-x-embodiment@googlegroups.com`](mailto:open-x-embodiment@googlegroups.com).
