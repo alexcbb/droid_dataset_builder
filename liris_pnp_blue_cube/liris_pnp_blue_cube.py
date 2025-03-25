@@ -1,28 +1,34 @@
 from typing import Iterator, Tuple, Any
 
 import numpy as np
-import tensorflow as tf
 import tensorflow_datasets as tfds
 import os
 from PIL import Image
+import datetime
 
-from liris_pnp_cube.utils import load_trajectory, crawler
-from liris_pnp_cube.tfds_utils import MultiThreadedDatasetBuilder
+from liris_pnp_blue_cube.utils import load_trajectory, crawler
+from liris_pnp_blue_cube.tfds_utils import MultiThreadedDatasetBuilder
+
+
+# We assume a fixed language instruction here -- if your dataset has various instructions, please modify
+LANGUAGE_INSTRUCTION = 'Pick up the blue cube and put it into the red bowl'
+                        
+# Modify to point to directory with raw DROID MP4 data
+DATA_PATH = "/home/panda/liris_droid/data/success"
 
 # (180, 320) is the default resolution, modify if different resolution is desired
 IMAGE_RES = (360, 640)
 
-DATA_DIR = '../../../data/success'
+# Set the dates from which you want to compose the dataset
+INITIAL_DATE = datetime.datetime(2025, 1, 30)
+FINAL_DATE = datetime.datetime(2025, 1, 30, 23, 59, 59)
 
-gpus = tf.config.experimental.list_physical_devices('GPU')
-if gpus:
-    try:
-        for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
-    except RuntimeError as e:
-        print(e)
+# Filter timesteps in which no command is given to the robot
+FILTER_NO_OPS = True
+
 
 def _generate_examples(paths) -> Iterator[Tuple[str, Any]]:
+
     def _resize_and_encode(image, size):
         image = Image.fromarray(image)
         return np.array(image.resize(size, resample=Image.BICUBIC))
@@ -30,11 +36,16 @@ def _generate_examples(paths) -> Iterator[Tuple[str, Any]]:
     def _parse_example(episode_path):
         h5_filepath = os.path.join(episode_path, 'trajectory.h5')
         recording_folderpath = os.path.join(episode_path, 'recordings', 'MP4')
+
         try:
-            data, lang = load_trajectory(h5_filepath, recording_folderpath=recording_folderpath)
+            data = load_trajectory(h5_filepath, recording_folderpath=recording_folderpath)
         except:
            print(f"Skipping trajectory because data couldn't be loaded for {episode_path}.")
            return None
+
+        # get a random language instruction
+        lang = LANGUAGE_INSTRUCTION
+
         try:
             assert all(t.keys() == data[0].keys() for t in data)
             for t in range(len(data)):
@@ -45,13 +56,17 @@ def _generate_examples(paths) -> Iterator[Tuple[str, Any]]:
 
             # assemble episode --> here we're assuming demos so we set reward to 1 at the end
             episode = []
-        
-            for i, step in enumerate(data):
+
+            for step in data:
+                if FILTER_NO_OPS and (step['action']['cartesian_velocity'] == 0).all():
+                    continue
+
                 obs = step['observation']
                 action = step['action']
                 camera_type_dict = obs['camera_type']
                 wrist_ids = [k for k, v in camera_type_dict.items() if v == 0]
                 exterior_ids = [k for k, v in camera_type_dict.items() if v != 0]
+
                 episode.append({
                     'observation': {
                         'exterior_image_1_left': obs['image'][f'{exterior_ids[0]}_left'][..., ::-1],
@@ -70,15 +85,22 @@ def _generate_examples(paths) -> Iterator[Tuple[str, Any]]:
                     },
                     'action': np.concatenate((action['cartesian_position'], [action['gripper_position']])),
                     'discount': 1.0,
-                    'reward': float((i == (len(data) - 1) and 'success' in episode_path)),
-                    'is_first': i == 0,
-                    'is_last': i == (len(data) - 1),
-                    'is_terminal': i == (len(data) - 1),
-                    'language_instruction': lang[0] if isinstance(lang, list) or isinstance(lang, np.ndarray) else lang,
+                    'reward': 0.0,
+                    'is_first': False,
+                    'is_last': False,
+                    'is_terminal': False,
+                    'language_instruction': lang,
                 })
+
+            episode[0]["is_first"] = True
+            episode[-1]["is_last"] = True
+            episode[-1]["is_terminal"] = True
+            episode[-1]["reward"] = 1.0
+
         except:
            print(f"Skipping trajectory because there was an error in data processing for {episode_path}.")
            return None
+
         # create output data sample
         sample = {
             'steps': episode,
@@ -95,7 +117,7 @@ def _generate_examples(paths) -> Iterator[Tuple[str, Any]]:
        yield _parse_example(sample)
 
 
-class LirisPnpCube(MultiThreadedDatasetBuilder):
+class LirisPnpBlueCube(MultiThreadedDatasetBuilder):
     """DatasetBuilder for example dataset."""
 
     VERSION = tfds.core.Version('1.0.0')
@@ -216,15 +238,20 @@ class LirisPnpCube(MultiThreadedDatasetBuilder):
             }))
 
     def _split_paths(self):
-        """Define data splits.
-        Args:
-            data_dir: path to the raw MP4 files."""
+        """Define data splits."""
         # create list of all examples -- by default we put all examples in 'train' split
         # add more elements to the dict below if you have more splits in your data
         print("Crawling all episode paths...")
-        episode_paths = crawler(DATA_DIR)
+        episode_paths = crawler(DATA_PATH)
         episode_paths = [p for p in episode_paths if os.path.exists(p + '/trajectory.h5') and \
                          os.path.exists(p + '/recordings/MP4')]
+        
+        if INITIAL_DATE:
+            episode_paths = [e for e in episode_paths if datetime.datetime.strptime(e.split("/")[-1], "%a_%b_%d_%H:%M:%S_%Y") >= INITIAL_DATE]
+
+        if FINAL_DATE:
+            episode_paths = [e for e in episode_paths if datetime.datetime.strptime(e.split("/")[-1], "%a_%b_%d_%H:%M:%S_%Y") <= FINAL_DATE]
+
         print(f"Found {len(episode_paths)} episodes!")
         return {
             'train': episode_paths,

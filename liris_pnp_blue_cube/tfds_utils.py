@@ -1,6 +1,5 @@
 from typing import Tuple, Any, Dict, Union, Callable, Iterable
 import numpy as np
-import tensorflow as tf
 import tensorflow_datasets as tfds
 
 import itertools
@@ -127,7 +126,7 @@ def parse_examples_from_generator(paths, fcn, split_name, total_num_examples, fe
         try:
             example = features.encode_example(example)
         except Exception as e:  # pylint: disable=broad-except
-            utils.reraise(e, prefix=f'Failed to encode example:\n{example["episode_metadata"]["file_path"]} with {example["steps"][0]["observation"]["wrist_image_left"].shape}\n')
+            utils.reraise(e, prefix=f'Failed to encode example:\n{key}\n')
         outputs.append((key, serializer.serialize_example(example)))
     return outputs
 
